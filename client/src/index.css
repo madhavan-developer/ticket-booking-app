@@ -1,0 +1,39 @@
+
+/* ===Fonts Link===== */
+
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap');
+
+/* ====Tailwind CSS Link==== */
+
+@import "tailwindcss";
+
+:root {
+  --primary-color: #F84565;
+}
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 200px;
+}
+*{
+  scrollbar-width: thin;
+  scrollbar-color: #f84565;
+  font-family: "Outfit", sans-serif;
+}
+
+body{
+  color: #fff;
+  background-color: #000000;
+}
+.no-scrollbar {
+  -ms-overflow-style: none; /* Internet Explorer 10+ */
+  scrollbar-width: none;    /* Firefox */
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;            /* Safari and Chrome */
+}
+
+input::-webkit-inner-spin-button,
+input::-webkit-outer-spin-button{
+  -webkit-appearance: none;
+}
