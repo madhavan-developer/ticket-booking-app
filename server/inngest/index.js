@@ -1,5 +1,5 @@
 import { Inngest } from "inngest";
-import User from "../configs/models/User.js"; // Capitalize model name
+import User from "../models/User.js"; // Capitalize model name
 
 // Create a client
 export const inngest = new Inngest({ id: "ticket-booking" });
