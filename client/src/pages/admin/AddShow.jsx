@@ -39,12 +39,24 @@ const AddShow = () => {
     setBackdropFile(e.target.files[0]);
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    console.log("Form Data:", formData);
-    console.log("Poster File:", posterFile);
-    console.log("Backdrop File:", backdropFile);
+  const handleSubmit = async (e) => {
+  e.preventDefault();
+
+  const updatedFormData = {
+    ...formData,
+    genres: formData.genres.split(",").map((g) => g.trim()),
   };
+
+  const res = await fetch("http://localhost:5000/api/movies/add", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(updatedFormData),
+  });
+
+  const data = await res.json();
+  console.log(data);
+};
+
 
   return (
    <div  className='px-4'>
