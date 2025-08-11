@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import 'dotenv/config';
-import connectDB from './configs/db.js';
+import connectDB from './configs/db.js'; // adjust path if needed
 import { clerkMiddleware } from '@clerk/express';
 import { serve } from 'inngest/express';
 import { inngest, functions } from './inngest/index.js';
@@ -12,29 +12,27 @@ const port = process.env.PORT || 3000;
 
 // ===== Environment checks =====
 if (!process.env.CLERK_PUBLISHABLE_KEY || !process.env.CLERK_SECRET_KEY) {
-  console.warn(
-    '⚠️ Clerk keys are missing! Set CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY in your .env file.'
-  );
+  console.warn('⚠️ Clerk keys are missing!');
 }
 if (!process.env.MONGODB_URI) {
-  console.warn('⚠️ MongoDB URI is missing! Set MONGODB_URI in your .env file.');
+  console.warn('⚠️ MongoDB URI is missing!');
 }
 
 // ===== Middleware =====
 app.use(express.json());
 app.use(cors());
 
-// Only use Clerk middleware if keys exist
+// Clerk
 if (process.env.CLERK_PUBLISHABLE_KEY && process.env.CLERK_SECRET_KEY) {
   app.use(clerkMiddleware());
 }
 
-// ===== Connect to DB =====
+// Connect DB
 await connectDB();
 
-// ===== Routes =====
+// Routes
 app.get('/', (req, res) => {
-  res.send('Server is connected');
+  res.send(`Server is connected ✅ (Port: ${port})`);
 });
 
 app.use('/api/inngest', serve({ client: inngest, functions }));
@@ -46,5 +44,5 @@ if (process.env.NODE_ENV !== 'production') {
   });
 }
 
-// ===== Export for Vercel serverless =====
+// ===== Export for Vercel =====
 export default serverless(app);
