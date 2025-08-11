@@ -22,27 +22,42 @@ if (!process.env.MONGODB_URI) {
 app.use(express.json());
 app.use(cors());
 
-// Clerk
+// Clerk middleware
 if (process.env.CLERK_PUBLISHABLE_KEY && process.env.CLERK_SECRET_KEY) {
   app.use(clerkMiddleware());
 }
 
-// Connect DB
-await connectDB();
+// ===== DB Connection =====
+let isConnected = false;
+async function initDB() {
+  if (!isConnected) {
+    await connectDB();
+    isConnected = true;
+    console.log('✅ MongoDB connected');
+  }
+}
 
-// Routes
+app.use(async (req, res, next) => {
+  await initDB();
+  next();
+});
+
+// ===== Routes =====
 app.get('/', (req, res) => {
   res.send(`Server is connected ✅ (Port: ${port})`);
 });
 
 app.use('/api/inngest', serve({ client: inngest, functions }));
 
-// ===== Local development =====
+// ===== Serverless handler =====
+const handler = serverless(app);
+
+// Local development mode
 if (process.env.NODE_ENV !== 'production') {
   app.listen(port, () => {
     console.log(`✅ Server running at http://localhost:${port}`);
   });
 }
 
-// ===== Export for Vercel =====
-export default serverless(app);
+// ✅ Always export handler for Vercel
+export default handler;
