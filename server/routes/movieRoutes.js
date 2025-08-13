@@ -13,11 +13,13 @@ const {
 
 const router = express.Router();
 
+// Create upload folders if not exist
 const posterDir = path.join(__dirname, "../uploads/posters");
 const backdropDir = path.join(__dirname, "../uploads/backdrops");
 if (!fs.existsSync(posterDir)) fs.mkdirSync(posterDir, { recursive: true });
 if (!fs.existsSync(backdropDir)) fs.mkdirSync(backdropDir, { recursive: true });
 
+// Multer storage settings
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     if (file.fieldname === "poster") cb(null, posterDir);
@@ -31,6 +33,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
+// Routes
 router.post(
   "/",
   upload.fields([

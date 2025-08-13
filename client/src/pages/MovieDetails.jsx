@@ -1,44 +1,51 @@
 import React, { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
-import { dummyShowsData, dummyDateTimeData } from "../assets/assets";
+import { useParams, useNavigate } from "react-router-dom";
 import { Heart, MoveLeftIcon, PlayIcon, StarIcon } from "lucide-react";
 import Time from "../lib/TimeConvert";
-import Preloader from "../components/Preloader"; // ✅ Import Preloader
+import Preloader from "../components/Preloader";
 import MovieCard from "../components/MovieCard";
-import { useNavigate } from "react-router-dom";
 import DateSelect from "../components/DateSelect";
+import axios from "axios";
+import { API_BASE_URL } from "../utils/constants";
 
 const MovieDetails = () => {
   const { id } = useParams();
-  const [show, setShow] = useState(null);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const getShow = async () => {
-      const idAsNumber = parseInt(id);
-      const foundMovie = dummyShowsData.find((item) => item.id === idAsNumber);
+  const [movie, setMovie] = useState(null);
+  const [movies, setMovies] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-      // Simulate loading delay
-      setTimeout(() => {
+  useEffect(() => {
+    const fetchMovies = async () => {
+      try {
+        const res = await axios.get(`${API_BASE_URL}/movies`);
+        const allMovies = res.data;
+
+        setMovies(allMovies);
+
+        // Find the movie by _id from API
+        const foundMovie = allMovies.find((m) => m._id === id);
         if (foundMovie) {
-          setShow({
-            movie: foundMovie,
-            dateTime: dummyDateTimeData,
-          });
+          setMovie(foundMovie);
         } else {
-          console.warn("No movie found with id:", idAsNumber);
+          setError("Movie not found");
         }
-      }, 2000); // ⏱️ 2 second delay
+      } catch (err) {
+        console.error(err);
+        setError("Failed to fetch movies");
+      } finally {
+        setLoading(false);
+      }
     };
 
-    getShow();
+    fetchMovies();
   }, [id]);
 
-  if (!show) {
-    return <Preloader />;
-  }
-
-  const { movie } = show;
+  if (loading) return <Preloader />;
+  if (error) return <p className="text-red-500">{error}</p>;
+  if (!movie) return <p>No movie data available.</p>;
 
   const formatDate = (dateStr) => {
     const date = new Date(dateStr);
@@ -50,6 +57,7 @@ const MovieDetails = () => {
 
   return (
     <div className="p-4 mx-6 sm:mx-6 md:mx-36 mt-36">
+      {/* Back Button */}
       <button
         onClick={() => window.history.back()}
         className="flex items-center gap-2 mb-10 text-gray-300 hover:text-[var(--primary-color)] transition-colors cursor-pointer"
@@ -58,6 +66,7 @@ const MovieDetails = () => {
         <p>Back</p>
       </button>
 
+      {/* Movie Main Info */}
       <div className="flex flex-col md:flex-row gap-6 md:w-2/3">
         <img
           className="w-full md:w-90 md:h-100 rounded-xl shadow-lg"
@@ -74,8 +83,8 @@ const MovieDetails = () => {
             <StarIcon className="text-yellow-500 fill-yellow-500" />
             <p className="text-gray-300">
               <span className="text-[var(--primary-color)]">
-                {movie.vote_average.toFixed(1)}{" "}
-              </span>{" "}
+                {movie.vote_average}{" "}
+              </span>
               IMDB Rating
             </p>
           </div>
@@ -86,7 +95,7 @@ const MovieDetails = () => {
             <p>
               {Time(movie.runtime)} -{" "}
               <span className="text-[var(--primary-color)]">
-                {movie.genres.map((genre) => genre.name).join(" | ")}
+                {movie.genres.join(" | ")}
               </span>{" "}
               - {formatDate(movie.release_date)}
             </p>
@@ -97,7 +106,10 @@ const MovieDetails = () => {
               <PlayIcon className="w-4 h-4" />
               Watch Trailer
             </button>
-            <a href="#buy-tickets" className="bg-[var(--primary-color)] text-white py-2 px-4 rounded-md cursor-pointer">
+            <a
+              href="#buy-tickets"
+              className="bg-[var(--primary-color)] text-white py-2 px-4 rounded-md cursor-pointer"
+            >
               Buy Tickets
             </a>
             <button className="bg-gray-700 text-white py-3 px-3 rounded-full cursor-pointer">
@@ -107,44 +119,23 @@ const MovieDetails = () => {
         </div>
       </div>
 
-      <div className="mt-36 ">
-        <h2 className="text-2xl font-bold mb-8">Movie Actors</h2>
-        <div className="flex overflow-x-auto gap-6 no-scrollbar">
-          {movie.casts && movie.casts.length > 0 ? (
-            movie.casts.slice(0, 12).map((actor, index) => (
-              <div key={index} className="items-center gap-4 mt-4 ">
-                <div className="flex flex-col w-40 items-center">
-                  <img
-                    className="w-26 h-26 rounded-full object-cover"
-                    src={actor.profile_path}
-                    alt={actor.name}
-                  />
-                  <div>
-                    <h3 className="text-sm font-semibold">{actor.name}</h3>
-                    <p className="text-gray-300">{actor.character}</p>
-                  </div>
-                </div>
-              </div>
-            ))
-          ) : (
-            <p className="text-gray-400">No cast data available.</p>
-          )}
-        </div>
-      </div>
+      {/* Showtimes */}
       <div className="mt-36" id="buy-tickets">
-        {dummyDateTimeData && Object.keys(dummyDateTimeData).length > 0 ? (
-          <DateSelect movieId={id} dateTimeData={dummyDateTimeData} />
+        {movie.showtimes && movie.showtimes.length > 0 ? (
+          <DateSelect movieId={id} dateTimeData={movie.showtimes} />
         ) : (
           <p className="text-gray-400">No date data available.</p>
         )}
       </div>
+
+      {/* You May Also Like */}
       <h2 className="text-2xl font-semibold mb-4 mt-36">You May Also Like</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-10">
-        {dummyShowsData
-          .filter((show) => String(show.id) !== id) // Avoid matching the current movie
+        {movies
+          .filter((m) => m._id !== id)
           .slice(0, 4)
-          .map((show) => (
-            <MovieCard key={show.id} show={show} />
+          .map((m) => (
+            <MovieCard key={m._id} show={m} />
           ))}
       </div>
 

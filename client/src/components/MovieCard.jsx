@@ -13,7 +13,7 @@ const MovieCard = ({ show }) => {
     <div className='flex flex-col gap-4 bg-[#12161C] p-4 rounded-2xl text-white'>
       <img
         onClick={handleNavigate}
-        src={show.backdrop_path}
+        src={show.poster_path}
         alt={show.title || "Movie Poster"}
         className='w-full h-64 object-cover rounded-lg cursor-pointer'
       />
@@ -21,7 +21,7 @@ const MovieCard = ({ show }) => {
       <h3 className='text-xl font-semibold'>{show.title}</h3>
 
       <p className='text-[16px] text-white/55'>
-        {show.release_date?.slice(0, 4) || "N/A"} –{' '}
+        {show.release_date || "N/A"} –{''}
         {show.genres?.map((genre) => genre.name).join(", ") || "Unknown Genre"} –{' '}
         {show.runtime ? Time(show.runtime) : "Unknown Duration"}
       </p>

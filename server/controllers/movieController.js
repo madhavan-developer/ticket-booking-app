@@ -1,5 +1,9 @@
 const Movie = require("../models/movie.js");
 
+// Define base URL (change in .env only)
+const BASE_URL = process.env.BASE_URL || "http://localhost:5000"; 
+// Example for live: BASE_URL=https://madhavan.com
+
 // Create a movie
 exports.createMovie = async (req, res) => {
   try {
@@ -17,11 +21,11 @@ exports.createMovie = async (req, res) => {
     } = req.body;
 
     const posterPath = req.files?.poster
-      ? `/uploads/posters/${req.files.poster[0].filename}`
+      ? `${BASE_URL}/uploads/posters/${req.files.poster[0].filename}`
       : null;
 
     const backdropPath = req.files?.backdrop
-      ? `/uploads/backdrops/${req.files.backdrop[0].filename}`
+      ? `${BASE_URL}/uploads/backdrops/${req.files.backdrop[0].filename}`
       : null;
 
     const newMovie = new Movie({
@@ -50,7 +54,6 @@ exports.createMovie = async (req, res) => {
     res.status(500).json({ error: "Internal Server Error" });
   }
 };
-
 
 // Get all movies
 exports.getMovies = async (req, res) => {
@@ -82,10 +85,10 @@ exports.updateMovie = async (req, res) => {
     Object.assign(movie, req.body);
 
     if (req.files?.poster) {
-      movie.poster_path = `/uploads/posters/${req.files.poster[0].filename}`;
+      movie.poster_path = `${BASE_URL}/uploads/posters/${req.files.poster[0].filename}`;
     }
     if (req.files?.backdrop) {
-      movie.backdrop_path = `/uploads/backdrops/${req.files.backdrop[0].filename}`;
+      movie.backdrop_path = `${BASE_URL}/uploads/backdrops/${req.files.backdrop[0].filename}`;
     }
 
     await movie.save();
