@@ -5,7 +5,7 @@ import { Calendar, X } from "lucide-react";
 import Title from "../../components/admin/Title";
 import axios from "axios";
 
-// DateInput: same as before
+// DateInput: Release Date picker
 export const DateInput = ({ value, onDateChange }) => {
   const [startDate, setStartDate] = useState(null);
 
@@ -15,25 +15,28 @@ export const DateInput = ({ value, onDateChange }) => {
   };
 
   return (
-    <div className="mb-4 relative">
-      <label className="block mb-1 font-medium">Release Date</label>
-      <div className="react-datepicker-wrapper w-full">
-        <DatePicker
-          selected={startDate}
-          onChange={handleDateChange}
-          dateFormat="dd/MM/yyyy"
-          placeholderText="dd/mm/yyyy"
-          className="w-full p-2 pr-10 rounded bg-zinc-800 border border-zinc-700 text-white appearance-none"
-          showPopperArrow={false}
-          isClearable
-        />
-      </div>
-      <Calendar className="absolute right-3 top-9 text-zinc-400 w-5 h-5 pointer-events-none" />
+    <div className="mb-4">
+  <label className="block mb-1 font-medium">Release Date</label>
+  <div className="relative w-full">
+    <div className="react-datepicker-wrapper w-full">
+      <DatePicker
+        selected={startDate}
+        onChange={handleDateChange}
+        dateFormat="dd/MM/yyyy"
+        placeholderText="dd/mm/yyyy"
+        className="w-full p-2 pr-10 rounded bg-zinc-800 border border-zinc-700 text-white"
+        showPopperArrow={false}
+        isClearable
+      />
     </div>
+    <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 w-5 h-5 pointer-events-none" />
+  </div>
+</div>
+
   );
 };
 
-// DateTimeMultiInput: lifted state
+// DateTimeMultiInput: Showtimes input
 export const DateTimeMultiInput = ({ showtimes, setShowtimes }) => {
   const [dateTime, setDateTime] = useState(null);
 
@@ -108,6 +111,103 @@ export const DateTimeMultiInput = ({ showtimes, setShowtimes }) => {
   );
 };
 
+// Seat Layout Input
+const SeatLayoutInput = ({ seatLayout, setSeatLayout }) => {
+  const addGroup = () => {
+    setSeatLayout({
+      ...seatLayout,
+      groupings: [
+        ...seatLayout.groupings,
+        { layout: "stacked", rows: [], price: "" },
+      ],
+    });
+  };
+
+  const updateGroup = (i, field, value) => {
+    const updated = { ...seatLayout };
+    if (field === "rows") {
+      updated.groupings[i][field] = value.split(",").map((r) => r.trim());
+    } else {
+      updated.groupings[i][field] = value;
+    }
+    setSeatLayout(updated);
+  };
+
+  const removeGroup = (i) => {
+    const updated = { ...seatLayout };
+    updated.groupings = updated.groupings.filter((_, idx) => idx !== i);
+    setSeatLayout(updated);
+  };
+
+  return (
+    <div className="mb-6">
+      <label className="block mb-2 font-medium">Seat Layout</label>
+
+      {/* Seats per row */}
+      <div className="mb-3">
+        <label className="block text-sm">Seats per Row</label>
+        <input
+          type="number"
+          value={seatLayout.seatsPerRow}
+          onChange={(e) =>
+            setSeatLayout({ ...seatLayout, seatsPerRow: e.target.value })
+          }
+          className="w-full p-2 rounded bg-zinc-800 border border-zinc-700"
+        />
+      </div>
+
+      {/* Groups */}
+      {seatLayout.groupings.map((group, i) => (
+        <div
+          key={i}
+          className="flex gap-2 items-center mb-2 bg-zinc-800 p-3 rounded"
+        >
+          <select
+            value={group.layout}
+            onChange={(e) => updateGroup(i, "layout", e.target.value)}
+            className="p-2 rounded bg-zinc-700 border border-zinc-600"
+          >
+            <option value="stacked">Stacked</option>
+            <option value="grid">Grid</option>
+          </select>
+
+          <input
+            type="text"
+            placeholder="Rows (A,B,C)"
+            value={group.rows.join(",")}
+            onChange={(e) => updateGroup(i, "rows", e.target.value)}
+            className="p-2 rounded bg-zinc-700 border border-zinc-600 flex-1"
+          />
+
+          <input
+            type="number"
+            placeholder="Price"
+            value={group.price || ""}
+            onChange={(e) => updateGroup(i, "price", e.target.value)}
+            className="p-2 rounded bg-zinc-700 border border-zinc-600 w-24"
+          />
+
+          <button
+            type="button"
+            onClick={() => removeGroup(i)}
+            className="text-red-400 font-bold"
+          >
+            X
+          </button>
+        </div>
+      ))}
+
+      <button
+        type="button"
+        onClick={addGroup}
+        className="mt-2 bg-[var(--primary-color)] text-white px-3 py-1 rounded"
+      >
+        + Add Group
+      </button>
+    </div>
+  );
+};
+
 const AddShow = () => {
   const [formData, setFormData] = useState({
     title: "",
@@ -115,13 +215,16 @@ const AddShow = () => {
     genres: "",
     release_date: "",
     tagline: "",
-    vote_average: "",
-    vote_count: "",
     runtime: "",
     original_language: "",
   });
 
   const [showtimes, setShowtimes] = useState([]);
+  const [seatLayout, setSeatLayout] = useState({
+    groupings: [],
+    seatsPerRow: 8,
+  });
+
   const [posterFile, setPosterFile] = useState(null);
   const [backdropFile, setBackdropFile] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -157,7 +260,7 @@ const AddShow = () => {
         data.append(key, formData[key]);
       });
 
-      // Convert Date objects to ISO strings
+      // Showtimes
       if (showtimes.length > 0) {
         data.append(
           "showtimes",
@@ -165,10 +268,13 @@ const AddShow = () => {
         );
       }
 
+      // Seat Layout
+      data.append("seatLayout", JSON.stringify(seatLayout));
+
       if (posterFile) data.append("poster", posterFile);
       if (backdropFile) data.append("backdrop", backdropFile);
 
-      const res = await axios.post("http://localhost:5000/api/movies", data, {
+      await axios.post("http://localhost:5000/api/movies", data, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
@@ -179,12 +285,11 @@ const AddShow = () => {
         genres: "",
         release_date: "",
         tagline: "",
-        vote_average: "",
-        vote_count: "",
         runtime: "",
         original_language: "",
       });
       setShowtimes([]);
+      setSeatLayout({ groupings: [], seatsPerRow: 8 });
       setPosterFile(null);
       setBackdropFile(null);
     } catch (err) {
@@ -241,7 +346,10 @@ const AddShow = () => {
           />
         </div>
         {/* Release Date */}
-        <DateInput value={formData.release_date} onDateChange={handleDateChange} />
+        <DateInput
+          value={formData.release_date}
+          onDateChange={handleDateChange}
+        />
         {/* Tagline */}
         <div className="mb-4">
           <label className="block mb-1 font-medium">Tagline</label>
@@ -255,30 +363,6 @@ const AddShow = () => {
         </div>
         {/* Show Times */}
         <DateTimeMultiInput showtimes={showtimes} setShowtimes={setShowtimes} />
-        {/* Vote Average & Vote Count */}
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div>
-            <label className="block mb-1 font-medium">Vote Average</label>
-            <input
-              type="number"
-              step="0.1"
-              name="vote_average"
-              className="w-full p-2 rounded bg-zinc-800 border border-zinc-700"
-              value={formData.vote_average}
-              onChange={handleChange}
-            />
-          </div>
-          <div>
-            <label className="block mb-1 font-medium">Vote Count</label>
-            <input
-              type="number"
-              name="vote_count"
-              className="w-full p-2 rounded bg-zinc-800 border border-zinc-700"
-              value={formData.vote_count}
-              onChange={handleChange}
-            />
-          </div>
-        </div>
         {/* Runtime & Language */}
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div>
@@ -302,6 +386,11 @@ const AddShow = () => {
             />
           </div>
         </div>
+        {/* Seat Layout */}
+        <SeatLayoutInput
+          seatLayout={seatLayout}
+          setSeatLayout={setSeatLayout}
+        />
         {/* Poster Upload */}
         <div className="mb-4">
           <label className="block mb-1 font-medium">Poster Image</label>

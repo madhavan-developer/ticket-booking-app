@@ -1,7 +1,7 @@
 const Movie = require("../models/movie.js");
 
 // Define base URL (change in .env only)
-const BASE_URL = process.env.BASE_URL || "http://localhost:5000"; 
+const BASE_URL = process.env.BASE_URL || "http://localhost:5000";
 // Example for live: BASE_URL=https://madhavan.com
 
 // Create a movie
@@ -17,7 +17,8 @@ exports.createMovie = async (req, res) => {
       vote_average,
       vote_count,
       runtime,
-      original_language
+      original_language,
+      seatLayout, // ✅ NEW
     } = req.body;
 
     const posterPath = req.files?.poster
@@ -34,11 +35,16 @@ exports.createMovie = async (req, res) => {
       genres: genres ? genres.split(",").map((g) => g.trim()) : [],
       release_date,
       tagline,
-      showtimes: showtimes ? JSON.parse(showtimes).map(dt => new Date(dt)) : [],
+      showtimes: showtimes ? JSON.parse(showtimes).map((dt) => new Date(dt)) : [],
       vote_average,
       vote_count,
       runtime,
       original_language,
+
+      // ✅ Seat Layout (parse JSON)
+      seatLayout: seatLayout ? JSON.parse(seatLayout) : { groupings: [], seatsPerRow: 0 },
+
+      // Images
       poster_path: posterPath,
       backdrop_path: backdropPath,
     });
@@ -47,7 +53,7 @@ exports.createMovie = async (req, res) => {
 
     res.status(201).json({
       message: "Movie created successfully",
-      movie: newMovie
+      movie: newMovie,
     });
   } catch (error) {
     console.error("Error creating movie:", error);
@@ -82,8 +88,36 @@ exports.updateMovie = async (req, res) => {
     const movie = await Movie.findById(req.params.id);
     if (!movie) return res.status(404).json({ error: "Movie not found" });
 
-    Object.assign(movie, req.body);
+    const updates = { ...req.body };
 
+    // ✅ Parse seatLayout safely
+    if (updates.seatLayout) {
+      try {
+        updates.seatLayout = JSON.parse(updates.seatLayout);
+      } catch {
+        updates.seatLayout = movie.seatLayout; // fallback
+      }
+    }
+
+    // ✅ Parse showtimes safely
+    if (updates.showtimes) {
+      try {
+        if (typeof updates.showtimes === "string") {
+          updates.showtimes = JSON.parse(updates.showtimes);
+        }
+        if (Array.isArray(updates.showtimes)) {
+          updates.showtimes = updates.showtimes.map((dt) => new Date(dt));
+        }
+      } catch (err) {
+        console.error("Showtimes parse error:", err);
+        updates.showtimes = movie.showtimes; // fallback
+      }
+    }
+
+    // ✅ Apply updates
+    Object.assign(movie, updates);
+
+    // ✅ Handle image updates
     if (req.files?.poster) {
       movie.poster_path = `${BASE_URL}/uploads/posters/${req.files.poster[0].filename}`;
     }
@@ -98,6 +132,7 @@ exports.updateMovie = async (req, res) => {
     res.status(500).json({ error: "Internal Server Error" });
   }
 };
+
 
 // Delete movie
 exports.deleteMovie = async (req, res) => {

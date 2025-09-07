@@ -79,16 +79,6 @@ const MovieDetails = () => {
           </h1>
           <h2 className="text-3xl font-bold mb-2">{movie.title}</h2>
 
-          <div className="flex items-center gap-2 mb-4">
-            <StarIcon className="text-yellow-500 fill-yellow-500" />
-            <p className="text-gray-300">
-              <span className="text-[var(--primary-color)]">
-                {movie.vote_average}{" "}
-              </span>
-              IMDB Rating
-            </p>
-          </div>
-
           <p className="mb-4 text-gray-300">{movie.overview}</p>
 
           <div className="flex items-center">

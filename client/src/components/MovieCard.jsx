@@ -1,4 +1,3 @@
-import { StarIcon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Time from '../lib/TimeConvert';
 
@@ -6,8 +5,13 @@ const MovieCard = ({ show }) => {
   const navigate = useNavigate();
 
   const handleNavigate = () => {
-    navigate(`/movies/${show.id}`);
+    navigate(`/movies/${show._id}`);
   };
+
+  // ✅ Find highest price from seatLayout.groupings
+  const highestPrice = show.seatLayout?.groupings?.length
+    ? Math.max(...show.seatLayout.groupings.map((g) => g.price || 0))
+    : "N/A";
 
   return (
     <div className='flex flex-col gap-4 bg-[#12161C] p-4 rounded-2xl text-white'>
@@ -21,8 +25,8 @@ const MovieCard = ({ show }) => {
       <h3 className='text-xl font-semibold'>{show.title}</h3>
 
       <p className='text-[16px] text-white/55'>
-        {show.release_date || "N/A"} –{''}
-        {show.genres?.map((genre) => genre.name).join(", ") || "Unknown Genre"} –{' '}
+        {show.release_date || "N/A"} –{' '}
+        {show.genres?.map((genre) => genre.name || genre).join(", ") || "Unknown Genre"} –{' '}
         {show.runtime ? Time(show.runtime) : "Unknown Duration"}
       </p>
 
@@ -33,9 +37,12 @@ const MovieCard = ({ show }) => {
         >
           Buy Ticket
         </button>
+
+        {/* ✅ Show highest price */}
         <div className='flex items-center gap-1'>
-          <StarIcon className='text-yellow-400 fill-yellow-400' />
-          <span className='text-lg'>{show.vote_average?.toFixed(1) || "0.0"}</span>
+          <span className='text-lg font-semibold text-green-400'>
+            {highestPrice !== "N/A" ? `₹${highestPrice}` : "N/A"}
+          </span>
         </div>
       </div>
     </div>

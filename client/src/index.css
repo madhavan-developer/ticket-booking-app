@@ -37,3 +37,8 @@ input::-webkit-inner-spin-button,
 input::-webkit-outer-spin-button{
   -webkit-appearance: none;
 }
+.react-datepicker-wrapper,
+.react-datepicker__input-container {
+  display: block !important;
+  width: 100% !important;
+}

@@ -43,22 +43,30 @@ const MoviesList = () => {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 px-4 md:px-36 mt-10">
-        {movies.slice(0, 4).map((movie) => (
-          <MovieCard key={movie._id} show={movie} />
-        ))}
-      </div>
+      {movies.length === 0 ? (
+        <p className="text-center text-gray-400 mt-10 text-lg">
+          🎬 No movies available
+        </p>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 px-4 md:px-36 mt-10">
+            {movies.slice(0, 4).map((movie) => (
+              <MovieCard key={movie._id} show={movie} />
+            ))}
+          </div>
 
-      <div className="flex justify-center mt-16">
-        <button
-          onClick={() => {
-            navigate("/movies");
-          }}
-          className="px-4 py-2 text-lg bg-[var(--primary-color)] cursor-pointer rounded-lg hover:bg-red-500"
-        >
-          Show more
-        </button>
-      </div>
+          <div className="flex justify-center mt-16">
+            <button
+              onClick={() => {
+                navigate("/movies");
+              }}
+              className="px-4 py-2 text-lg bg-[var(--primary-color)] cursor-pointer rounded-lg hover:bg-red-500"
+            >
+              Show more
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 };
