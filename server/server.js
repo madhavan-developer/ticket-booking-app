@@ -62,6 +62,17 @@ app.get("/", (req, res) => {
   res.send("Hello World! Backend is running 🚀");
 });
 
+app.post("/api/send-email", async (req, res) => {
+  const { to, subject, html } = req.body;
+  try {
+    await sendMail(to, subject, html);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // API routes
 const movieRoutes = require("./routes/movieRoutes.js");
 const bookingRoutes = require("./routes/bookingRoutes.js");

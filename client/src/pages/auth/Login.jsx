@@ -1,10 +1,9 @@
 // src/auth/Login.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { auth, googleProvider } from "../../lib/firebase";
 import {
   signInWithEmailAndPassword,
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithPopup, // ✅ for Google popup
 } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 
@@ -32,21 +31,6 @@ const Login = () => {
     }
   };
 
-  // ✅ Handle Google redirect result after returning from Google
-  useEffect(() => {
-    getRedirectResult(auth)
-      .then(async (result) => {
-        if (result?.user) {
-          console.log("Google Login successful:", result.user);
-          await syncUserToBackend(result.user);
-          navigate("/");
-        }
-      })
-      .catch((err) => {
-        setError(err.message);
-      });
-  }, [navigate]);
-
   // ✅ Email/Password login
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -60,11 +44,13 @@ const Login = () => {
     }
   };
 
-  // ✅ Google login (redirect version)
+  // ✅ Google login (popup)
   const handleGoogleLogin = async () => {
     setError("");
     try {
-      await signInWithRedirect(auth, googleProvider);
+      const result = await signInWithPopup(auth, googleProvider);
+      await syncUserToBackend(result.user);
+      navigate("/");
     } catch (err) {
       setError(err.message);
     }
@@ -85,7 +71,7 @@ const Login = () => {
           <input
             type="email"
             placeholder="Email"
-            className="p-2 rounded text-black"
+            className="p-2 rounded text-white outline-0 border border-gray-600"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
@@ -93,14 +79,14 @@ const Login = () => {
           <input
             type="password"
             placeholder="Password"
-            className="p-2 rounded text-black"
+            className="p-2 rounded text-white outline-0 border border-gray-600"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
           />
           <button
             type="submit"
-            className="bg-red-500 hover:bg-red-600 py-2 rounded"
+            className="bg-red-500 hover:bg-red-600 py-2 rounded cursor-pointer"
           >
             Login
           </button>
@@ -113,12 +99,17 @@ const Login = () => {
           <div className="flex-1 h-px bg-gray-600"></div>
         </div>
 
-        {/* Google Login */}
+        {/* Google Login (popup) */}
         <button
           onClick={handleGoogleLogin}
-          className="bg-blue-500 hover:bg-blue-600 w-full py-2 rounded"
+          className="flex items-center justify-center gap-3 bg-white cursor-pointer text-gray-900 w-full py-2 rounded transition"
         >
-          Continue with Google
+          <img
+            src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+            alt="Google logo"
+            className="w-5 h-5"
+          />
+          <span>Continue with Google</span>
         </button>
 
         {/* Redirect to Signup */}

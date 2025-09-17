@@ -70,7 +70,7 @@ const DropdownMenu = ({ movie, onDelete, onUpdate }) => {
 
 /* ---------------- Dashboard ---------------- */
 const Dashboard = () => {
-  const currency = import.meta.env.VITE_CURRENCY || "$";
+  const currency = import.meta.env.VITE_CURRENCY || "₹";
 
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -241,5 +241,5 @@ const Dashboard = () => {
     </div>
   );
 };
-
+ 
 export default Dashboard;

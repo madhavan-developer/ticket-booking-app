@@ -1,12 +1,17 @@
+// src/pages/MyBooking.jsx
 import React, { useEffect, useState } from "react";
 import { getAuth } from "firebase/auth";
 import { useLocation, useNavigate } from "react-router-dom";
 import Preloader from "../components/Preloader";
 import Time from "../lib/TimeConvert";
 import { formatDate } from "/src/lib/DateFormate.js";
+import { useBooking } from "../components/BookingContext";
 
 const MyBooking = () => {
+  const { bookingData, setBookingData } = useBooking(); // ✅ move inside component
+
   const currency = import.meta.env.VITE_CURRENCY;
+  const API_URL = import.meta.env.VITE_API_URL;
 
   const auth = getAuth();
   const user = auth.currentUser;
@@ -18,17 +23,16 @@ const MyBooking = () => {
   const [bookings, setBookings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [previewBooking, setPreviewBooking] = useState(previewFromState);
+  const [hiddenBookings, setHiddenBookings] = useState([]);
 
-  // ✅ Fetch booking data from DB
+  // Fetch bookings
   const getBookingData = async () => {
     if (!user) return;
     setIsLoading(true);
     try {
-      const res = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/bookings/${user.uid}`
-      );
+      const res = await fetch(`${API_URL}/api/bookings/${user.uid}`);
       const data = await res.json();
-      setBookings(data);
+      setBookings(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Error fetching bookings:", err);
     } finally {
@@ -36,54 +40,53 @@ const MyBooking = () => {
     }
   };
 
-  // ✅ Handle payment success or fetch all bookings
+  // Handle payment success query params
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const success = params.get("success");
     const bookingId = params.get("bookingId");
 
     if (success === "true" && bookingId) {
-      // ✅ Mark booking as paid in DB
-      fetch(`${import.meta.env.VITE_API_URL}/api/bookings/${bookingId}`, {
+      // Optimistic UI update
+      setBookings((prev) =>
+        prev.map((b) => (b._id === bookingId ? { ...b, isPaid: true } : b))
+      );
+      setPreviewBooking((prev) =>
+        prev && prev._id === bookingId ? { ...prev, isPaid: true } : prev
+      );
+
+      // Update backend
+      fetch(`${API_URL}/api/bookings/${bookingId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isPaid: true }),
       })
-        .then(() => {
-          getBookingData();
-          setPreviewBooking(null); // ✅ Clear preview after payment
-        })
+        .then(() => getBookingData())
         .catch((err) => console.error("Error updating booking:", err));
 
-      navigate("/mybookings", { replace: true }); // Clean up query params
+      navigate("/mybookings", { replace: true });
     } else {
       getBookingData();
     }
   }, [location]);
 
-  // ✅ Handle Stripe Pay Now
+  // Stripe Pay Now
   const handlePayNow = async (booking) => {
     try {
       const res = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/payment/create-checkout-session`,
+        `${API_URL}/api/payment/create-checkout-session`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ booking }),
+          body: JSON.stringify({ booking: { ...booking, userId: user?.uid } }),
         }
       );
 
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || "Failed to create checkout session");
-      }
-
       const data = await res.json();
-
-      if (data.url) {
+      if (res.ok && data.url) {
         window.location.href = data.url;
       } else {
-        console.error("No URL returned from Stripe");
+        throw new Error(data.error || "Failed to create checkout session");
       }
     } catch (err) {
       console.error("Stripe checkout error:", err.message);
@@ -91,64 +94,144 @@ const MyBooking = () => {
     }
   };
 
-  // ✅ Reusable Booking Card UI
-  const renderBookingCard = (booking, isPreview = false) => (
-    <div
-      key={booking._id || "preview"}
-      className="flex flex-col md:flex-row justify-between bg-[var(--primary-color)]/5 border border-[var(--primary-color)]/20 rounded-lg mt-4 p-4 max-w-3xl shadow-md"
-    >
-      <div className="flex flex-col md:flex-row w-full gap-4">
-        <img
-          className="md:max-w-48 aspect-video h-50 object-cover object-bottom rounded-lg"
-          src={booking.show.movie.poster_path}
-          alt={booking.show.movie.title}
-        />
-        <div className="flex flex-col md:flex-row justify-between flex-1">
-          <div className="flex flex-col justify-start">
+  // Cancel booking
+  const handleCancelBooking = async (bookingId) => {
+    if (!window.confirm("Are you sure you want to cancel this booking?"))
+      return;
+    try {
+      const res = await fetch(`${API_URL}/api/bookings/${bookingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          isCanceled: true,
+          cancelReason: "User canceled",
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to cancel booking");
+
+      setBookings((prev) =>
+        prev.map((b) =>
+          b._id === bookingId
+            ? { ...b, isCanceled: true, status: "canceled" }
+            : b
+        )
+      );
+
+      alert("Booking canceled successfully");
+    } catch (err) {
+      console.error("Error canceling booking:", err);
+      alert(`Failed to cancel booking: ${err.message}`);
+    }
+  };
+
+  // Remove from UI only (not DB)
+  const handleDelete = (bookingId) => {
+    if (!window.confirm("Are you sure you want to hide this booking?")) return;
+
+    // Update local state
+    const updated = bookings.filter((b) => b._id !== bookingId);
+    setBookings(updated);
+
+    // Update BookingContext (and localStorage automatically)
+    if (Array.isArray(bookingData.bookings)) {
+      const updatedContext = {
+        ...bookingData,
+        bookings: bookingData.bookings.filter((b) => b._id !== bookingId),
+      };
+      setBookingData(updatedContext);
+    }
+
+    alert("Booking hidden from UI successfully");
+  };
+
+  const visibleBookings = bookings.filter(
+    (b) => !hiddenBookings.includes(b._id)
+  );
+
+  const renderBookingCard = (booking) => {
+    if (!booking?.show?.movie) return null;
+    const { movie, showDateTime } = booking.show;
+
+    return (
+      <div
+        key={booking._id || "preview"}
+        className="flex flex-col md:flex-row justify-between bg-[var(--primary-color)]/5 border border-[var(--primary-color)]/20 rounded-lg mt-4 p-4 max-w-3xl shadow-md"
+      >
+        <div className="flex flex-col md:flex-row w-full gap-4">
+          <img
+            className="md:max-w-48 aspect-video h-50 object-cover object-bottom rounded-lg"
+            src={movie.poster_path || "/placeholder.jpg"}
+            alt={movie.title}
+          />
+
+          <div className="flex flex-col md:flex-row justify-between flex-1">
             <div>
               <h3 className="text-2xl font-bold">
-                {booking.show.movie.title}
-                <span className="text-sm text-gray-400 font-normal ml-2">
-                  ({booking.show.movie.original_language})
+                {movie.title}
+                <span className="text-sm text-gray-400 ml-2">
+                  ({movie.original_language})
                 </span>
               </h3>
-              <p className="text-md text-gray-500">
-                {Time(booking.show.movie.runtime)}
+              <p className="text-md text-gray-500">{Time(movie.runtime)}</p>
+              <p className="text-md text-gray-400 mt-2">
+                {formatDate(showDateTime)}
               </p>
             </div>
-            <p className="text-md text-gray-400 mt-2">
-              {formatDate(booking.show.showDateTime)}
-            </p>
-          </div>
-          <div className="flex flex-col justify-start text-right mt-4 md:mt-0">
-            <div className="flex flex-col md:flex-row justify-end items-end gap-4">
-              <h2 className="text-2xl font-bold">
-                {currency}
-                {booking.show.showPrice}
-              </h2>
-              {!booking.isPaid && (
-                <button
-                  onClick={() => handlePayNow(booking)}
-                  className="bg-[var(--primary-color)] px-4 py-2 rounded-3xl cursor-pointer hover:bg-red-500 text-sm transition"
-                >
-                  Pay Now
-                </button>
-              )}
+
+            <div className="flex flex-col text-right mt-4 md:mt-0">
+              <div className="flex flex-wrap justify-end gap-3 items-center">
+                {!booking.isPaid && !booking.isCanceled && (
+                  <button
+                    onClick={() => handlePayNow(booking)}
+                    className="bg-[var(--primary-color)] px-4 py-2 rounded-3xl hover:bg-red-500 text-sm transition"
+                  >
+                    Pay Now
+                  </button>
+                )}
+
+                {booking.isPaid && !booking.isCanceled && (
+                  <button
+                    onClick={() => handleCancelBooking(booking._id)}
+                    className="bg-red-600 px-4 py-2 rounded-3xl text-white text-sm hover:bg-red-700 transition"
+                  >
+                    Cancel Booking
+                  </button>
+                )}
+
+                {booking.isPaid && !booking.isCanceled && (
+                  <p className="text-green-500 font-semibold mt-1">Paid</p>
+                )}
+
+                {booking.isCanceled && (
+                  <p className="text-red-500 font-semibold mt-1">
+                    Booking Canceled
+                  </p>
+                )}
+
+                {!booking.isPaid && (
+                  <button
+                    onClick={() => handleDelete(booking._id)}
+                    className="bg-gray-600 px-4 py-2 rounded-3xl text-white text-sm hover:bg-gray-700 transition"
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
+
+              <p className="text-md text-gray-500 mt-1">
+                Total Tickets: {booking.bookedSeats?.length || 0}
+              </p>
+              <p className="text-md text-gray-500 mt-1">
+                Seats: {booking.bookedSeats?.join(", ")}
+              </p>
             </div>
-            <p className="text-md text-gray-500 mt-1">
-              Total Tickets: {booking.bookedSeats.length}
-            </p>
-            <p className="text-md text-gray-500 mt-1">
-              Selected Seats: {booking.bookedSeats.join(", ")}
-            </p>
-            {booking.isPaid && (
-              <p className="text-green-400 font-semibold mt-1">Paid</p>
-            )}
           </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   if (isLoading) return <Preloader />;
 
@@ -156,14 +239,32 @@ const MyBooking = () => {
     <div className="mx-4 md:mx-36 mt-36 md:w-5/10">
       <h2 className="text-2xl font-bold mb-4">My Bookings</h2>
 
-      {/* ✅ Preview Booking Before Payment */}
-      {previewBooking && renderBookingCard(previewBooking, true)}
-
-      {/* ✅ Past Bookings After Payment */}
       {bookings.length === 0 && !previewBooking ? (
-        <p className="text-gray-400 mt-4">No bookings found.</p>
+        <div className="flex flex-col items-center justify-center text-center py-16 bg-gray-50 rounded-lg shadow-sm">
+          <img
+            src="/src/assets/empty-box.png"
+            alt="No bookings"
+            className="w-40 h-40 mb-6 opacity-80"
+          />
+          <h3 className="text-xl font-semibold text-gray-700 mb-2">
+            No Bookings Yet
+          </h3>
+          <p className="text-gray-500 max-w-md mb-6">
+            It looks like you haven’t booked any tickets yet. Start exploring
+            movies and reserve your seats now!
+          </p>
+          <button
+            onClick={() => navigate("/movies")}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-3 rounded-full transition-all"
+          >
+            Browse Movies
+          </button>
+        </div>
       ) : (
-        bookings.map((item) => renderBookingCard(item))
+        <>
+          {previewBooking && renderBookingCard(previewBooking)}
+          {bookings.map((b) => renderBookingCard(b))}
+        </>
       )}
     </div>
   );

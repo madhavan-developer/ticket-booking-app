@@ -98,7 +98,7 @@ const MovieDetails = () => {
             </button>
             <a
               href="#buy-tickets"
-              className="bg-[var(--primary-color)] text-white py-2 px-4 rounded-md cursor-pointer"
+              className="bg-[var(--primary-color)] text-white pt-3 px-4 rounded-md cursor-pointer"
             >
               Buy Tickets
             </a>
