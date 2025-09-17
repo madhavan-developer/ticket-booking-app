@@ -195,7 +195,7 @@ const MyBooking = () => {
                 {!booking.isPaid && !booking.isCanceled && (
                   <button
                     onClick={() => handlePayNow(booking)}
-                    className="bg-[var(--primary-color)] px-4 py-2 rounded-3xl hover:bg-red-500 text-sm transition"
+                    className="bg-[var(--primary-color)] cursor-pointer px-4 py-2 rounded-3xl hover:bg-red-500 text-sm transition"
                   >
                     Pay Now
                   </button>

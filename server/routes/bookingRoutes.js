@@ -7,17 +7,19 @@ const router = express.Router();
 
 /**
  * 📌 GET /api/bookings?movieId=xxx&showtime=xxx
+ * → Fetch bookings for a specific movie & showtime (used for seat layout)
  */
 router.get("/", async (req, res) => {
   try {
     const { movieId, showtime } = req.query;
 
+    // ✅ If no query params, return ALL bookings (for admin dashboard)
     if (!movieId || !showtime) {
-      return res.status(400).json({
-        error: "movieId and showtime are required as query params",
-      });
+      const bookings = await Booking.find().sort({ createdAt: -1 });
+      return res.json(bookings);
     }
 
+    // ✅ Seat layout query
     const bookings = await Booking.find({
       "show._id": movieId,
       "show.showDateTime": new Date(showtime),
@@ -51,16 +53,18 @@ router.get("/:uid", async (req, res) => {
   }
 });
 
-
 /**
  * 📌 POST /api/bookings
+ * → Create new booking (testing / non-Stripe flow)
  */
 router.post("/", async (req, res) => {
   try {
     const { userId, userEmail, show, bookedSeats, isPaid } = req.body;
 
     if (!userId || !userEmail) {
-      return res.status(400).json({ error: "userId and userEmail are required" });
+      return res
+        .status(400)
+        .json({ error: "userId and userEmail are required" });
     }
     if (!show || typeof show !== "object") {
       return res.status(400).json({ error: "show object is required" });
@@ -73,7 +77,9 @@ router.post("/", async (req, res) => {
       });
     }
     if (!Array.isArray(bookedSeats) || bookedSeats.length === 0) {
-      return res.status(400).json({ error: "At least one seat must be provided" });
+      return res
+        .status(400)
+        .json({ error: "At least one seat must be provided" });
     }
 
     const newBooking = new Booking({
@@ -166,6 +172,7 @@ router.patch("/:id", async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
 /**
  * 📌 DELETE /api/bookings/:id
  */

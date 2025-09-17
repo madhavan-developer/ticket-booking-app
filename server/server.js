@@ -129,6 +129,25 @@ app.use("/api/movies", movieRoutes);
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/payment", paymentRoutes);
 
+// ✅ Dashboard stats route
+app.get("/api/dashboard/stats", async (req, res) => {
+  try {
+    const bookings = await Booking.find();
+
+    const totalBookings = bookings.length;
+    const totalRevenue = bookings
+      .filter((b) => b.isPaid)
+      .reduce((sum, b) => sum + (b.show?.showPrice || 0), 0);
+
+    const totalUsers = new Set(bookings.map((b) => b.userId)).size;
+
+    res.json({ totalBookings, totalRevenue, totalUsers });
+  } catch (err) {
+    console.error("Error in /api/dashboard/stats:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // ✅ Start server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

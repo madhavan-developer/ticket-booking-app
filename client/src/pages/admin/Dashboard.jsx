@@ -1,3 +1,4 @@
+// src/pages/admin/Dashboard.jsx
 import React, { useState, useEffect, useRef } from "react";
 import {
   ChartLineIcon,
@@ -13,7 +14,7 @@ import Preloader from "../../components/Preloader";
 import { formatDate } from "../../lib/DateFormate";
 import { API_BASE_URL } from "../../utils/constants";
 import Modal from "../../components/admin/Modal";
-import UpdateShow from "../../components/admin/UpdateShow"
+import UpdateShow from "../../components/admin/UpdateShow";
 
 /* ---------------- Dropdown Menu ---------------- */
 const DropdownMenu = ({ movie, onDelete, onUpdate }) => {
@@ -79,24 +80,29 @@ const Dashboard = () => {
   const [movieToUpdate, setMovieToUpdate] = useState(null);
 
   useEffect(() => {
-    fetchMovies();
+    fetchDashboardData();
   }, []);
 
-  const fetchMovies = async () => {
+  const fetchDashboardData = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/movies`);
-      const movies = await res.json();
+      // ✅ Stats
+      const resStats = await fetch(`${API_BASE_URL}/dashboard/stats`);
+      const stats = resStats.ok ? await resStats.json() : {};
+
+      // ✅ Movies
+      const resMovies = await fetch(`${API_BASE_URL}/movies`);
+      const movies = resMovies.ok ? await resMovies.json() : [];
 
       const data = {
-        totalBookings: 0, // placeholder
-        totalRevenue: 0, // placeholder
-        activeShows: movies,
-        totalUsers: 0, // placeholder
+        totalBookings: stats.totalBookings || 0,
+        totalRevenue: stats.totalRevenue || 0,
+        totalUsers: stats.totalUsers || 0,
+        activeShows: Array.isArray(movies) ? movies : [],
       };
 
       setDashboardData(data);
     } catch (error) {
-      console.error("Failed to fetch movies:", error);
+      console.error("Failed to fetch dashboard data:", error);
     } finally {
       setLoading(false);
     }
@@ -185,8 +191,8 @@ const Dashboard = () => {
           {dashboardData.activeShows.map((movie) => {
             const prices =
               movie.seatLayout?.groupings?.map((g) => g.price) || [];
-            const minPrice = Math.min(...prices);
-            const maxPrice = Math.max(...prices);
+            const minPrice = prices.length ? Math.min(...prices) : 0;
+            const maxPrice = prices.length ? Math.max(...prices) : 0;
 
             return (
               <div
@@ -235,11 +241,11 @@ const Dashboard = () => {
         <UpdateShow
           movieData={movieToUpdate}
           onClose={() => setUpdateModalOpen(false)}
-          onSuccess={fetchMovies}
+          onSuccess={fetchDashboardData}
         />
       </Modal>
     </div>
   );
 };
- 
+
 export default Dashboard;

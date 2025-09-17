@@ -5,6 +5,8 @@ import Title from "../../components/admin/Title";
 import { API_BASE_URL } from "../../utils/constants";
 import Preloader from "../../components/Preloader";
 
+const rupees = import.meta.env.VITE_CURRENCY || "₹";
+
 const ListBookingShow = () => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -17,7 +19,7 @@ const ListBookingShow = () => {
     try {
       const res = await fetch(`${API_BASE_URL}/bookings`);
       const data = await res.json();
-      setBookings(data);
+      setBookings(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Failed to fetch bookings:", err);
     } finally {
@@ -34,7 +36,7 @@ const ListBookingShow = () => {
       <table className="w-full text-left border-separate border-spacing-y-2 mt-6">
         <thead>
           <tr className="bg-[var(--primary-color)]/50 text-white text-[20px]">
-            <th className="p-3 rounded-l-md">User Name</th>
+            <th className="p-3 rounded-l-md">User Email</th>
             <th className="p-3">Movie Name</th>
             <th className="p-3">Show Time</th>
             <th className="p-3">Seats</th>
@@ -49,24 +51,37 @@ const ListBookingShow = () => {
               </td>
             </tr>
           ) : (
-            bookings.map((booking, index) => (
-              <tr
-                key={index}
-                className="bg-[var(--primary-color)]/20 text-white text-[16px]"
-              >
-                <td className="p-3">{booking.user?.name || "Unknown User"}</td>
-                <td className="p-3">{booking.show?.movie?.title || "N/A"}</td>
-                <td className="p-3">
-                  {booking.show?.showDateTime
-                    ? formatDate(booking.show.showDateTime)
-                    : "N/A"}
-                </td>
-                <td className="p-3">
-                  {booking.bookedSeats?.join(", ") || "N/A"}
-                </td>
-                <td className="p-3">${booking.amount || 0}</td>
-              </tr>
-            ))
+            bookings.map((booking, index) => {
+              const seatCount = booking.bookedSeats?.length || 0;
+              const seatList =
+                seatCount > 0 ? booking.bookedSeats.join(", ") : "N/A";
+              const amount =
+                (booking.show?.showPrice || 0) * seatCount;
+
+              return (
+                <tr
+                  key={booking._id || index}
+                  className="bg-[var(--primary-color)]/20 text-white text-[16px]"
+                >
+                  <td className="p-3">
+                    {booking.userEmail || "Unknown"}
+                  </td>
+                  <td className="p-3">
+                    {booking.show?.movie?.title || "N/A"}
+                  </td>
+                  <td className="p-3">
+                    {booking.show?.showDateTime
+                      ? formatDate(booking.show.showDateTime)
+                      : "N/A"}
+                  </td>
+                  <td className="p-3">{seatList}</td>
+                  <td className="p-3">
+                    {rupees}
+                    {amount.toFixed(2)}
+                  </td>
+                </tr>
+              );
+            })
           )}
         </tbody>
       </table>

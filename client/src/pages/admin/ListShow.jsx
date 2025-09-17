@@ -5,31 +5,56 @@ import Title from "../../components/admin/Title";
 import { API_BASE_URL } from "../../utils/constants";
 import Preloader from "../../components/Preloader";
 
-const rupees = import.meta.env.VITE_CURRENCY;
+const rupees = import.meta.env.VITE_CURRENCY || "₹";
 
 const ListShow = () => {
   const [shows, setShows] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch movies on mount
   useEffect(() => {
     fetchShows();
   }, []);
 
   const fetchShows = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/movies`);
-      const movies = await res.json();
+      // ✅ Get movies and bookings
+      const [moviesRes, bookingsRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/movies`),
+        fetch(`${API_BASE_URL}/bookings`),
+      ]);
 
-      // Flatten movie -> showtimes into "shows"
+      const movies = moviesRes.ok ? await moviesRes.json() : [];
+      const bookings = bookingsRes.ok ? await bookingsRes.json() : [];
+
+      // ✅ Flatten movies into shows
       const showList = movies.flatMap((movie) =>
-        (movie.showtimes || []).map((showtime) => ({
-          movieTitle: movie.title,
-          showDateTime: showtime,
-          occupiedSeats: movie.occupiedSeats || {}, // adjust if your schema is different
-          priceRange:
-            movie.seatLayout?.groupings?.map((g) => g.price) || [0],
-        }))
+        (movie.showtimes || []).map((showtime) => {
+          // Find bookings for this movie + showtime
+          const relatedBookings = bookings.filter(
+            (b) =>
+              b.show?._id === movie._id &&
+              new Date(b.show?.showDateTime).toISOString() ===
+                new Date(showtime).toISOString()
+          );
+
+          // Count seats booked
+          const totalBooking = relatedBookings.reduce(
+            (sum, b) => sum + (b.bookedSeats?.length || 0),
+            0
+          );
+
+          // Revenue = sum of showPrice for each paid booking
+          const earning = relatedBookings
+            .filter((b) => b.isPaid)
+            .reduce((sum, b) => sum + (b.show?.showPrice || 0), 0);
+
+          return {
+            movieTitle: movie.title,
+            showDateTime: showtime,
+            totalBooking,
+            earning,
+          };
+        })
       );
 
       setShows(showList);
@@ -63,27 +88,22 @@ const ListShow = () => {
               </td>
             </tr>
           ) : (
-            shows.map((show, idx) => {
-              const totalBooking = Object.keys(show.occupiedSeats || {}).length;
-              const avgPrice =
-                show.priceRange.reduce((a, b) => a + b, 0) /
-                show.priceRange.length;
-              const earning = `${rupees}${(totalBooking * avgPrice).toFixed(2)}`;
-
-              return (
-                <tr
-                  key={idx}
-                  className="bg-[var(--primary-color)]/20 text-white text-[16px]"
-                >
-                  <td className="p-3">{show.movieTitle}</td>
-                  <td className="p-3">
-                    {show.showDateTime ? formatDate(show.showDateTime) : "N/A"}
-                  </td>
-                  <td className="p-3">{totalBooking}</td>
-                  <td className="p-3">{earning}</td>
-                </tr>
-              );
-            })
+            shows.map((show, idx) => (
+              <tr
+                key={idx}
+                className="bg-[var(--primary-color)]/20 text-white text-[16px]"
+              >
+                <td className="p-3">{show.movieTitle}</td>
+                <td className="p-3">
+                  {show.showDateTime ? formatDate(show.showDateTime) : "N/A"}
+                </td>
+                <td className="p-3">{show.totalBooking}</td>
+                <td className="p-3">
+                  {rupees}
+                  {show.earning.toFixed(2)}
+                </td>
+              </tr>
+            ))
           )}
         </tbody>
       </table>
