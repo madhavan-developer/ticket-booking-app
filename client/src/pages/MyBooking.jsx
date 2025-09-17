@@ -8,7 +8,7 @@ import { formatDate } from "/src/lib/DateFormate.js";
 import { useBooking } from "../components/BookingContext";
 
 const MyBooking = () => {
-  const { bookingData, setBookingData } = useBooking(); // ✅ move inside component
+  const { bookingData, setBookingData } = useBooking();
 
   const currency = import.meta.env.VITE_CURRENCY;
   const API_URL = import.meta.env.VITE_API_URL;
@@ -25,7 +25,7 @@ const MyBooking = () => {
   const [previewBooking, setPreviewBooking] = useState(previewFromState);
   const [hiddenBookings, setHiddenBookings] = useState([]);
 
-  // Fetch bookings
+  // ✅ Fetch bookings
   const getBookingData = async () => {
     if (!user) return;
     setIsLoading(true);
@@ -40,7 +40,7 @@ const MyBooking = () => {
     }
   };
 
-  // Handle payment success query params
+  // ✅ Handle payment success query params
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const success = params.get("success");
@@ -70,7 +70,7 @@ const MyBooking = () => {
     }
   }, [location]);
 
-  // Stripe Pay Now
+  // ✅ Stripe Pay Now
   const handlePayNow = async (booking) => {
     try {
       const res = await fetch(
@@ -78,7 +78,14 @@ const MyBooking = () => {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ booking: { ...booking, userId: user?.uid } }),
+          // ⬇️ include userEmail so backend can send mail later
+          body: JSON.stringify({
+            booking: {
+              ...booking,
+              userId: user?.uid,
+              userEmail: user?.email,
+            },
+          }),
         }
       );
 
@@ -94,10 +101,9 @@ const MyBooking = () => {
     }
   };
 
-  // Cancel booking
+  // ✅ Cancel booking
   const handleCancelBooking = async (bookingId) => {
-    if (!window.confirm("Are you sure you want to cancel this booking?"))
-      return;
+    if (!window.confirm("Are you sure you want to cancel this booking?")) return;
     try {
       const res = await fetch(`${API_URL}/api/bookings/${bookingId}`, {
         method: "PATCH",
@@ -126,15 +132,18 @@ const MyBooking = () => {
     }
   };
 
-  // Remove from UI only (not DB)
+  // ✅ Remove from UI only (not DB)
   const handleDelete = (bookingId) => {
     if (!window.confirm("Are you sure you want to hide this booking?")) return;
 
-    // Update local state
     const updated = bookings.filter((b) => b._id !== bookingId);
     setBookings(updated);
 
-    // Update BookingContext (and localStorage automatically)
+    // 🔑 FIX: also clear previewBooking if it matches the deleted booking
+    if (previewBooking && previewBooking._id === bookingId) {
+      setPreviewBooking(null);
+    }
+
     if (Array.isArray(bookingData.bookings)) {
       const updatedContext = {
         ...bookingData,
@@ -150,6 +159,7 @@ const MyBooking = () => {
     (b) => !hiddenBookings.includes(b._id)
   );
 
+  // ✅ Render booking card
   const renderBookingCard = (booking) => {
     if (!booking?.show?.movie) return null;
     const { movie, showDateTime } = booking.show;

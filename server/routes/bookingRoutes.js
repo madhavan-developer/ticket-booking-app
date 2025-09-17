@@ -1,13 +1,12 @@
 // routes/bookingRoutes.js
 const express = require("express");
 const Booking = require("../models/booking.js");
-const { sendMail } = require("../utils/sendMail.js");
+const { sendMailWithAttachment } = require("../utils/sendMail.js");
 
 const router = express.Router();
 
 /**
  * 📌 GET /api/bookings?movieId=xxx&showtime=xxx
- * → Fetch all bookings for a specific movie & showtime (used for seat layout)
  */
 router.get("/", async (req, res) => {
   try {
@@ -34,13 +33,17 @@ router.get("/", async (req, res) => {
 /**
  * 📌 GET /api/bookings/:uid
  * → Fetch all bookings for a specific user
+ * → Only show bookings that are Paid OR Canceled (hide unpaid drafts)
  */
 router.get("/:uid", async (req, res) => {
   try {
     const { uid } = req.params;
-    const bookings = await Booking.find({ userId: uid }).sort({
-      createdAt: -1,
-    });
+
+    const bookings = await Booking.find({
+      userId: uid,
+      $or: [{ isPaid: true }, { isCanceled: true }],
+    }).sort({ createdAt: -1 });
+
     res.json(bookings);
   } catch (err) {
     console.error("Error in GET /api/bookings/:uid:", err);
@@ -48,40 +51,34 @@ router.get("/:uid", async (req, res) => {
   }
 });
 
+
 /**
  * 📌 POST /api/bookings
- * → Create a new booking (used for testing or non-Stripe bookings)
  */
 router.post("/", async (req, res) => {
   try {
-    const { userId, show, bookedSeats, isPaid } = req.body;
+    const { userId, userEmail, show, bookedSeats, isPaid } = req.body;
 
-    // ---- Validation ----
-    if (!userId) {
-      return res.status(400).json({ error: "userId is required" });
+    if (!userId || !userEmail) {
+      return res.status(400).json({ error: "userId and userEmail are required" });
     }
-
     if (!show || typeof show !== "object") {
       return res.status(400).json({ error: "show object is required" });
     }
 
     const { _id, showDateTime, showPrice, movie } = show;
-
     if (!_id || !showDateTime || !showPrice) {
       return res.status(400).json({
         error: "show._id, show.showDateTime and show.showPrice are required",
       });
     }
-
     if (!Array.isArray(bookedSeats) || bookedSeats.length === 0) {
-      return res
-        .status(400)
-        .json({ error: "At least one seat must be provided" });
+      return res.status(400).json({ error: "At least one seat must be provided" });
     }
 
-    // ---- Create & save booking ----
     const newBooking = new Booking({
       userId,
+      userEmail,
       show: {
         _id,
         movie: movie || {},
@@ -93,30 +90,6 @@ router.post("/", async (req, res) => {
     });
 
     await newBooking.save();
-
-    // ✉️ Only send mail if booking is already paid
-    if (newBooking.isPaid) {
-      try {
-        const seatList = bookedSeats.join(", ");
-        const html = `
-          <h2>Your Booking is Confirmed 🎉</h2>
-          <p><strong>Movie:</strong> ${movie?.title || "N/A"}</p>
-          <p><strong>Show Time:</strong> ${new Date(
-            showDateTime
-          ).toLocaleString()}</p>
-          <p><strong>Seats:</strong> ${seatList}</p>
-          <p>Total Price: ₹${showPrice}</p>
-        `;
-        await sendMail(
-          user.email, // assumes userId is an email
-          "Booking Confirmation",
-          html
-        );
-      } catch (mailErr) {
-        console.error("Failed to send booking email:", mailErr);
-      }
-    }
-
     res.status(201).json(newBooking);
   } catch (err) {
     console.error("Error in POST /api/bookings:", err);
@@ -124,7 +97,10 @@ router.post("/", async (req, res) => {
   }
 });
 
-// 📌 PATCH /api/bookings/:id
+/**
+ * 📌 PATCH /api/bookings/:id
+ * → Update booking and send email if paid
+ */
 router.patch("/:id", async (req, res) => {
   const { id } = req.params;
   const { isPaid, isCanceled, cancelReason } = req.body;
@@ -135,13 +111,54 @@ router.patch("/:id", async (req, res) => {
       return res.status(404).json({ error: "Booking not found" });
     }
 
-    // Only update fields that are provided
     if (typeof isPaid === "boolean") booking.isPaid = isPaid;
     if (typeof isCanceled === "boolean") booking.isCanceled = isCanceled;
     if (typeof cancelReason === "string") booking.cancelReason = cancelReason;
 
-    // ✅ Pre-save hook will handle status
     await booking.save();
+
+    // ✅ Send confirmation mail if marked paid
+    if (isPaid) {
+      const seatList = booking.bookedSeats.join(", ");
+      const html = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #ddd; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+          <div style="background: #ff4d4f; color: white; padding: 20px; text-align: center;">
+            <h2 style="margin: 0;">🎉 Booking Confirmed 🎉</h2>
+          </div>
+          <div style="text-align: center; background: #f9f9f9; padding: 20px;">
+            <img src="cid:posterImg" style="width: 200px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);" alt="Movie Poster" />
+          </div>
+          <div style="padding: 20px; color: #333;">
+            <h3 style="margin-bottom: 10px; font-size: 22px; color: #ff4d4f;">
+              ${booking.show.movie?.title}
+            </h3>
+            <p><strong>Show Time:</strong> ${new Date(
+              booking.show.showDateTime
+            ).toLocaleString()}</p>
+            <p><strong>Seats:</strong> ${seatList}</p>
+            <p style="font-weight: bold; color: #2ecc71;">
+              Total Price: ₹${booking.show.showPrice}
+            </p>
+          </div>
+          <div style="background: #f1f1f1; text-align: center; padding: 15px; font-size: 14px; color: #777;">
+            Thank you for booking with <strong>MovieTime</strong> 🎬 <br/>
+            Enjoy your movie!
+          </div>
+        </div>
+      `;
+
+      try {
+        await sendMailWithAttachment(
+          booking.userEmail,
+          "Booking Confirmation",
+          html,
+          booking.show.movie?.poster_path
+        );
+        console.log(`✅ Confirmation email sent to ${booking.userEmail}`);
+      } catch (mailErr) {
+        console.error("❌ Failed to send booking email:", mailErr);
+      }
+    }
 
     res.json({ message: "Booking updated successfully", booking });
   } catch (err) {
@@ -149,8 +166,9 @@ router.patch("/:id", async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
-
-// 📌 DELETE /api/bookings/:id
+/**
+ * 📌 DELETE /api/bookings/:id
+ */
 router.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;

@@ -5,7 +5,11 @@ const BookingSchema = new mongoose.Schema(
   {
     userId: {
       type: String,
-      required: [true, "userId is required"],
+      required: [true, "userId is required"], // Firebase UID
+    },
+    userEmail: {
+      type: String,
+      required: [true, "userEmail is required"], // store email for sending tickets
     },
     show: {
       _id: { type: String, required: [true, "show._id is required"] }, // movie/show id
@@ -47,7 +51,7 @@ const BookingSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Optional: pre-save hook to update status automatically
+// ✅ Pre-save hook to keep status consistent
 BookingSchema.pre("save", function (next) {
   if (this.isCanceled) this.status = "canceled";
   else if (this.isPaid) this.status = "paid";

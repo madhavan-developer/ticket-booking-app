@@ -1,68 +1,77 @@
+// routes/payment.js
 const express = require("express");
+const router = express.Router();
 const Stripe = require("stripe");
 const Booking = require("../models/booking.js");
 
-const router = express.Router();
-
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
+// Create checkout session
 router.post("/create-checkout-session", async (req, res) => {
   try {
-    console.log("STRIPE_SECRET_KEY:", process.env.STRIPE_SECRET_KEY ? "Exists" : "Missing");
-    console.log("CLIENT_URL:", process.env.CLIENT_URL);
+    console.log("Received booking data:", req.body.booking);
 
     const { booking } = req.body;
-    console.log("Received booking data:", booking);
+    if (!booking) return res.status(400).json({ error: "booking is required" });
 
-    if (!booking || !booking.show || !booking.show.movie || !booking.show.showPrice || !booking.bookedSeats) {
-      console.error("Invalid booking data:", booking);
-      return res.status(400).json({ error: "Invalid booking data." });
+    const { userId, userEmail, show, bookedSeats = [], isPaid } = booking;
+
+    if (!userId || !userEmail) {
+      return res.status(400).json({ error: "userId and userEmail are required" });
     }
 
-    const price = Number(booking.show.showPrice);
-    if (isNaN(price)) {
-      console.error("Invalid price:", booking.show.showPrice);
-      return res.status(400).json({ error: "Invalid show price." });
-    }
-
+    // ✅ Create a draft booking (unpaid until webhook confirms)
     const newBooking = new Booking({
-      userId: booking.userId,
-      show: booking.show,
-      bookedSeats: booking.bookedSeats,
-      isPaid: false,
+      userId,
+      userEmail,
+      show,
+      bookedSeats,
+      isPaid: Boolean(isPaid),
     });
 
-    try {
-      await newBooking.save();
-    } catch (dbErr) {
-      console.error("Booking save failed:", dbErr);
-      return res.status(500).json({ error: "Failed to save booking" });
-    }
+    await newBooking.save();
 
+    // --- Pricing ---
+    const seatsCount =
+      Array.isArray(bookedSeats) && bookedSeats.length > 0 ? bookedSeats.length : 1;
+
+    const perSeatPrice = Math.round((Number(show?.showPrice) / seatsCount) * 100);
+
+    // ✅ Create Stripe session (metadata kept minimal)
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
+      mode: "payment",
       line_items: [
         {
           price_data: {
             currency: "inr",
             product_data: {
-              name: booking.show.movie.title || "Movie Ticket",
+              name: show.movie?.title || "Movie Booking",
             },
-            unit_amount: Math.round(price * 100),
+            unit_amount: perSeatPrice,
           },
-          quantity: 1,
+          quantity: seatsCount,
         },
       ],
-      mode: "payment",
       success_url: `${process.env.CLIENT_URL}/mybookings?success=true&bookingId=${newBooking._id}`,
       cancel_url: `${process.env.CLIENT_URL}/mybookings?canceled=true`,
+      metadata: {
+        bookingId: newBooking._id.toString(),
+        userId, // ✅ safe short strings
+        seatCount: seatsCount.toString(),
+      },
     });
 
-    console.log("Stripe session created:", session.id);
+    console.log("Stripe pricing:", {
+      seatsCount,
+      perSeatPrice,
+      total: (perSeatPrice * seatsCount) / 100,
+    });
+
     res.json({ url: session.url });
   } catch (err) {
-    console.error("Stripe error:", err);
-    res.status(500).json({ error: "Internal Server Error" });
+    console.error("Booking save failed:", err);
+    res.status(500).json({ error: "Failed to create checkout session" });
   }
 });
 
