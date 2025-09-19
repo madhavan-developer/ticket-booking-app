@@ -1,3 +1,4 @@
+// src/components/admin/UpdateShow.jsx
 import React, { useState, useEffect } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -10,30 +11,41 @@ const UpdateShow = ({ movieData, onClose, onSuccess }) => {
     title: "",
     overview: "",
     genres: "",
-    release_date: "",
+    release_date: null, // ✅ keep as Date object
     tagline: "",
     runtime: "",
     original_language: "",
-    showtimes: [], // ✅ Added showtimes field
+    showtimes: [],
   });
+
   const [posterFile, setPosterFile] = useState(null);
   const [backdropFile, setBackdropFile] = useState(null);
-  const [newShowtime, setNewShowtime] = useState(null); // for adding new showtime
+  const [newShowtime, setNewShowtime] = useState(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
-  // Pre-fill fields when movieData changes
+  // ✅ Pre-fill fields with safe Date conversion
   useEffect(() => {
     if (movieData) {
+      let parsedDate = null;
+
+      if (movieData.release_date) {
+        const d = new Date(movieData.release_date);
+        // only accept valid dates
+        if (!isNaN(d.getTime())) {
+          parsedDate = d;
+        }
+      }
+
       setFormData({
         title: movieData.title || "",
         overview: movieData.overview || "",
         genres: movieData.genres?.join(", ") || "",
-        release_date: movieData.release_date || "",
+        release_date: parsedDate, // ✅ only valid Date or null
         tagline: movieData.tagline || "",
         runtime: movieData.runtime || "",
         original_language: movieData.original_language || "",
-        showtimes: movieData.showtimes || [], // ✅ load showtimes
+        showtimes: movieData.showtimes || [],
       });
     }
   }, [movieData]);
@@ -43,19 +55,11 @@ const UpdateShow = ({ movieData, onClose, onSuccess }) => {
   };
 
   const handleDateChange = (date) => {
-    if (date) {
-      const isoDate = date.toISOString().split("T")[0]; 
-      setFormData({ ...formData, release_date: isoDate });
-    }
+    setFormData({ ...formData, release_date: date }); // ✅ store Date object
   };
 
-  const handlePosterUpload = (e) => {
-    setPosterFile(e.target.files[0]);
-  };
-
-  const handleBackdropUpload = (e) => {
-    setBackdropFile(e.target.files[0]);
-  };
+  const handlePosterUpload = (e) => setPosterFile(e.target.files[0]);
+  const handleBackdropUpload = (e) => setBackdropFile(e.target.files[0]);
 
   // ✅ Add new showtime
   const handleAddShowtime = () => {
@@ -85,11 +89,17 @@ const UpdateShow = ({ movieData, onClose, onSuccess }) => {
 
     try {
       const data = new FormData();
+
       Object.keys(formData).forEach((key) => {
         if (key === "showtimes") {
           formData.showtimes.forEach((st, i) => {
             data.append(`showtimes[${i}]`, st);
           });
+        } else if (key === "release_date" && formData.release_date) {
+          data.append(
+            "release_date",
+            formData.release_date.toISOString().split("T")[0]
+          );
         } else {
           data.append(key, formData[key]);
         }
@@ -103,10 +113,8 @@ const UpdateShow = ({ movieData, onClose, onSuccess }) => {
       });
 
       setMessage("✅ Movie updated successfully!");
-      if (onSuccess) onSuccess(); // refresh dashboard
-      setTimeout(() => {
-        onClose();
-      }, 1000);
+      if (onSuccess) onSuccess();
+      setTimeout(() => onClose(), 1000);
     } catch (err) {
       setMessage("❌ Error updating data.");
       console.error("Update error:", err);
@@ -165,9 +173,7 @@ const UpdateShow = ({ movieData, onClose, onSuccess }) => {
         <label className="block mb-1">Release Date</label>
         <div className="relative">
           <DatePicker
-            selected={
-              formData.release_date ? new Date(formData.release_date) : null
-            }
+            selected={formData.release_date || null}
             onChange={handleDateChange}
             dateFormat="dd/MM/yyyy"
             className="w-full p-2 pr-10 rounded bg-zinc-800 border border-zinc-700"
@@ -180,21 +186,24 @@ const UpdateShow = ({ movieData, onClose, onSuccess }) => {
       <div className="mb-3">
         <label className="block mb-1">Showtimes</label>
         <div className="flex flex-wrap gap-2 mb-2">
-          {formData.showtimes.map((st, index) => (
-            <span
-              key={index}
-              className="bg-[var(--primary-color)] text-white px-3 py-1 rounded-full flex items-center gap-2"
-            >
-              {new Date(st).toLocaleString()}
-              <button
-                type="button"
-                onClick={() => handleDeleteShowtime(index)}
-                className="ml-2 text-white hover:text-gray-200"
+          {formData.showtimes.map((st, index) => {
+            const d = new Date(st);
+            return (
+              <span
+                key={index}
+                className="bg-[var(--primary-color)] text-white px-3 py-1 rounded-full flex items-center gap-2"
               >
-                <X className="w-4 h-4" />
-              </button>
-            </span>
-          ))}
+                {!isNaN(d.getTime()) ? d.toLocaleString() : "Invalid date"}
+                <button
+                  type="button"
+                  onClick={() => handleDeleteShowtime(index)}
+                  className="ml-2 text-white hover:text-gray-200"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </span>
+            );
+          })}
         </div>
 
         <div className="flex gap-2 items-center">
